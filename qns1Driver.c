@@ -49,7 +49,7 @@ static struct file_operations chardev_fops =
     .open = device_open,
     .release = device_release
 };
-
+//Testing comment
 /*
  * This function is called when the module is loaded
  */
