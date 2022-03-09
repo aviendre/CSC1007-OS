@@ -1,8 +1,9 @@
-obj-m += qns1Driver.o
+obj-m := qns1Driver.o
 
-all:
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules
-	$(CC) qns1Driver.c -o qns1Driver
-clean:
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) clean
-	rm qns1Driver
+KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+
+all default: modules
+install: modules_install
+
+modules modules_install help clean:
+	$(MAKE) -C $(KERNELDIR) M=$(shell pwd) $@
