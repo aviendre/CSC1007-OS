@@ -1,197 +1,164 @@
 /*
- *  driver.c: Creates a read-only char device that says how many times
- *  you've read from the dev file. Write operation will be denied. 
+ *  @file qns1Driver.c
+ *  @brief Basic character Device Driver
  */
 
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/fs.h>
-#include <linux/init.h>
-#include <linux/delay.h>
-#include <linux/device.h>
-#include <linux/irq.h>
-#include <asm/uaccess.h>
-#include <asm/irq.h>
-#include <asm/io.h>
-#include <linux/poll.h>
-#include <linux/cdev.h>
+#include <linux/init.h>     //Macros to mark up functions
+#include <linux/module.h>   //Core header to load LKM into the kernel
+#include <linux/device.h>   //Kernel driver model
+#include <linux/kernel.h>   //Kernel types, macros and functions
+#include <linux/fs.h>       //Linux file system
+#include <linux/uaccess.h>  //Copy to user function
+#define DEVICE_NAME "CSC1007OS"  
+#define CLASS_NAME "CSC1007"
 
-/*
- *  Prototypes - this would normally go in a .h file
- */
-int init_module(void);
-void cleanup_module(void);
-static int device_open(struct inode *, struct file *);
-static int device_release(struct inode *, struct file *);
-static ssize_t device_read(struct file *, char *, size_t, loff_t *);
-static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
+//modinfo details
+MODULE_LICENSE("GPL");      //License Type
+MODULE_AUTHOR("CSC1007_OS");
+MODULE_DESCRIPTION("Character Device Driver for linux");
+MODULE_VERSION("0.1");
 
-#define SUCCESS 0
-#define DEVICE_NAME "chardev"   /* Dev name as it appears in /proc/devices   */
-#define BUF_LEN 80              /* Max length of the message from the device */
+static int      majorNumber;
+static char     message[256] = {0};
+static short    size_of_message;
+static int      numberOpens = 0;
+static struct class* csc1007Class = NULL;
+static struct device* csc1007Device = NULL;
+static DEFINE_MUTEX(csc1007_mutex);
 
-/*
- * Global variables are declared as static, so are global within the file.
- */
+//Prototype functions
+static int      dev_open(struct inode *,struct file *);
+static int      dev_release(struct inode *, struct file *);
+static ssize_t  dev_read(struct file *, char *, size_t, loff_t *);
+static ssize_t  dev_write(struct file *, const char *, size_t, loff_t *);
 
-static int Major;               /* Major number assigned to our device driver */
-static int Device_Open = 0;     /* Is device open?
-                                 * Used to prevent multiple access to device */
-static char msg[BUF_LEN];       /* The msg the device will give when asked */
-static char *msg_Ptr;
-
-static struct class *cls;
-
-static struct file_operations chardev_fops = 
+static struct file_operations fops =
 {
-    .read = device_read,
-    .write = device_write,
-    .open = device_open,
-    .release = device_release
+    .open = dev_open,
+    .read = dev_read,
+    .write = dev_write,
+    .release = dev_release,
 };
-//Testing comment
-/*
- * This function is called when the module is loaded
- */
-int init_module(void)
-{
-    Major = register_chrdev(0, DEVICE_NAME, &chardev_fops);
 
-    if (Major < 0) 
-    {
-        // pr_alert: printk with KERN_ALERT an alert-level message; 
-        pr_alert("Registering char device failed with %d\n", Major);
-        return Major;
+/**
+ * @brief Character device kernel initialization. Will run once at initialization time and 
+ * discarded when it is done to free up memory. 
+ * 
+ * @return returns 0 if successful
+ */
+static int __init csc1007_init(void){
+    printk(KERN_INFO "DRIVER: Initializing CSC1007OS LKM\n");
+
+    //Allocate a major number for the device dynamically
+    majorNumber = register_chrdev(0,DEVICE_NAME, &fops);
+    if(majorNumber < 0){
+        printk(KERN_ALERT "CSC1007OS failed to register a major number\n");
+        return majorNumber;
     }
+    printk(KERN_INFO "CSC1007OS:registered with major number %d\n",majorNumber);
 
-    //pr_info: printk with KERN_INFO loglevel, an info-level message
-    pr_info("I was assigned major number %d.\n", Major);
-    printk(KERN_INFO "I was assigned major number %d.\n", Major);
+    //Register the device class
+    csc1007Class = class_create(THIS_MODULE, CLASS_NAME);
+    //Error-checking for the initialization of device class
+    if(IS_ERR(csc1007Class)){
+        unregister_chrdev(majorNumber,DEVICE_NAME);
+        printk(KERN_ALERT "Failed to register device class\n");
+        return PTR_ERR(csc1007Class);
+    }
+    printk(KERN_INFO "CSC1007OS: device class registered\n");
 
-    cls = class_create(THIS_MODULE, DEVICE_NAME);
-    device_create(cls, NULL, MKDEV(Major, 0), NULL, DEVICE_NAME);
+    //Register the device driver
+    csc1007Device = device_create(csc1007Class, NULL, MKDEV(majorNumber,0), NULL, DEVICE_NAME);
+    //Error-checking for the initialization of device driver
+    if(IS_ERR(csc1007Device)){
+        class_destroy(csc1007Class);
+        unregister_chrdev(majorNumber,DEVICE_NAME);
+        printk(KERN_ALERT "Failed to create the device\n");
+        return PTR_ERR(csc1007Device);
+    }
+    printk(KERN_INFO "CSC1007OS:device class created\n");
 
-    //pr_info: printk with KERN_INFO loglevel, an info-level message
-    pr_info("Device created on /dev/%s\n", DEVICE_NAME);
-
-    return SUCCESS;
+    mutex_init(&csc1007_mutex);
+    return 0;
 }
 
-/*
- * This function is called when the module is unloaded
+/**
+ * @brief Character device kernel exit function to handle any cleanup such as unregistering 
+ * device class and driver so future kernels may use the major number.
  */
-void cleanup_module(void)
-{
-    device_destroy(cls, MKDEV(Major, 0));
-    class_destroy(cls);
-
-    /*
-     * Unregister the device
-     */
-    unregister_chrdev(Major, DEVICE_NAME);
+static void __exit csc1007_exit(void){
+    mutex_destroy(&csc1007_mutex);
+    device_destroy(csc1007Class, MKDEV(majorNumber,0));
+    class_unregister(csc1007Class);
+    class_destroy(csc1007Class);
+    unregister_chrdev(majorNumber, DEVICE_NAME);
+    printk(KERN_INFO "CSC1007OS:Closing kernel\n");
 }
 
-/*
- * Methods
+/**
+ * @brief Open function will run each time the device is opened.
+ * Incrementing the numberOpens counter to see if the device is being accesed.
+ * @param inodep A pointer to an inode object 
+ * @param filep A pointer to a file object
  */
-
-/*
- * Called when a process tries to open the device file, like
- * "cat /dev/mycharfile"
- */
-static int device_open(struct inode *inode, struct file *file)
-{
-    static int counter = 0;
-
-    if (Device_Open)
+static int dev_open(struct inode *inodep, struct file *filep){
+    if(!mutex_trylock(&csc1007_mutex)){
+        printk(KERN_ALERT "CSC1007OS:Device is in use\n");
         return -EBUSY;
-
-    Device_Open++;
-
-    // sprintf: print message on the screen
-    sprintf(msg, "I already told you %d times Hello OS!\n", counter++); 
-//    printk(KERN_INFO "I already told you %d times Hello OS!\n", counter++);     
-    msg_Ptr = msg;
-    try_module_get(THIS_MODULE);
-
-    return SUCCESS;
-}
-
-/*
- * Called when a process closes the device file.
- */
-static int device_release(struct inode *inode, struct file *file)
-{
-    Device_Open--;          /* We're now ready for our next caller */
-
-    /*
-     * Decrement the usage count, or else once you opened the file, you'll
-     * never get get rid of the module.
-     */
-    module_put(THIS_MODULE);
-
-    return SUCCESS;
-}
-
-/*
- * Called when a process, which already opened the dev file, attempts to
- * read from it.
- */
-static ssize_t device_read(struct file *filp,   /* see include/linux/fs.h   */
-                           char *buffer,        /* buffer to fill with data */
-                           size_t length,       /* length of the buffer     */
-                           loff_t * offset)
-{
-    /*
-     * Number of bytes actually written to the buffer
-     */
-    int bytes_read = 0;
-
-    /*
-     * If we're at the end of the message,
-     * return 0 signifying end of file
-     */
-    if (*msg_Ptr == 0)
-        return 0;
-
-    /*
-     * Actually put the data into the buffer
-     */
-    while (length && *msg_Ptr) {
-
-        /*
-         * The buffer is in the user data segment, not the kernel
-         * segment so "*" assignment won't work.  We have to use
-         * put_user which copies data from the kernel data segment to
-         * the user data segment.
-         */
-        put_user(*(msg_Ptr++), buffer++);
-
-        length--;
-        bytes_read++;
     }
-
-    /*
-     * Most read functions return the number of bytes put into the buffer
-     */
-    return bytes_read;
+    numberOpens++;
+    printk(KERN_INFO "CSC1007OS:Device has been opened %d times\n",numberOpens);
+    return 0;
 }
 
-/*
- * Called when a process writes to dev file: echo "hi" > /dev/hello
+/**
+ * @brief Read function is called whenever the device is being read from the user space.
+ * copy_to_user() function to send the buffer string to the user and captures any errors
+ * @param filep A pointer to a file object
+ * @param buffer The pointer to the buffer to which this function writes the data
+ * @param len length of message
+ * @param offset any offset if required
  */
-static ssize_t device_write(struct file *filp,
-                            const char *buff,
-                            size_t len,
-                            loff_t * off)
-{
-    // pr_alert: printk with KERN_ALERT an alert-level message; 
-    pr_alert("Sorry, this operation isn't supported.\n"); 
-    return -EINVAL;
+static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
+    int errorCount = 0;
+    errorCount = copy_to_user(buffer, message, size_of_message);
+
+    //if no error, device has been read succesfully by user
+    if(error_count == 0){
+        printk(KERN_INFO "CSC1007OS:Device has been read by %d times\n",size_of_message);
+        return (size_of_message = 0);    //clear the position to the start and return 0
+    } else {
+        printk(KERN_INFO "CSC1007OS:Failed to send %d characters to the user\n",size_of_message);
+        return -EFAULT;     //return a bad address message
+    }
 }
 
-MODULE_LICENSE("GPL");                  	// The license type 
-MODULE_DESCRIPTION("Read Char Dev Module"); // The description of the module
-MODULE_AUTHOR("week2");                     // The author of the module
-MODULE_VERSION("0.1a");                  	// The version of the module
+/**
+ * @brief Write function is called whenever the device is being written from the user space.
+ * Message is copied into the message[] array in this driver using the sprintf() function.
+ * @param filep A pointer to a file object
+ * @param buffer The pointer to the buffer that contains the string to write to the device
+ * @param len The length of the array of data that is being passed in the const charr buffer
+ * @param offset Any offset if required
+ */
+static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
+    sprintf(message, "%s(%zu letters)",buffer, len);
+    size_of_message = strlen(message);
+    printk(KERN_INFO "CSC1007OS:Device has been written by %d times\n",len);
+    return len;
+}
 
+/**
+ * @brief Release function is called whenever the device is closed by the user space.
+ * @param inodep A pointer to an inode object 
+ * @param filep A pointer to an file object 
+ * @return int 
+ */
+static int dev_release(struct inode *inodep, struct file *filep){
+    mutex_unlock(&csc1007_mutex);
+    printk(KERN_INFO "CSC1007OS:Device has been closed\n");
+    return 0;
+}
+
+module_init(csc1007_init);
+module_exit(csc1007_exit);
