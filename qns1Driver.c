@@ -124,7 +124,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     errorCount = copy_to_user(buffer, message, size_of_message);
 
     //if no error, device has been read succesfully by user
-    if(error_count == 0){
+    if(errorCount == 0){
         printk(KERN_INFO "CSC1007OS:Device has been read by %d times\n",size_of_message);
         return (size_of_message = 0);    //clear the position to the start and return 0
     } else {
