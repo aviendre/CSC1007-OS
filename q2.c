@@ -2,11 +2,11 @@
 #include <stdio.h>
 
 /**
- * @brief First-in-First-Out algorithm. Store the pages in memory.
+ * @brief First-in-First-Out(FIFO) algorithm. Store the pages in memory.
  * When doing the page replacement, Swap the pages based on the pointer, which
  * always points to the oldest page in memory.
  * @param refString User input for the page replacement
- * @param pageFrames Number of avialable pages in the memory
+ * @param pageFrames Number of available pages in the memory
  * @param size Size of the reference string
  */
 void fifo(int refString[], int pageFrames, int size)
@@ -49,7 +49,13 @@ void fifo(int refString[], int pageFrames, int size)
     printf("\nThere are %d page faults in this page replacement process.", pageFaults);
 }
 
-// Optimal page replacement
+/**
+ * @brief Optimal Page Replacement algorithm replaces the pages base on future knowledge 
+ * of pages. Replace pages that are further back in the ref string.  
+ * @param refString User input for the page replacement
+ * @param pageFrames Number of available pages in the memory
+ * @param size Size of the reference string
+ */
 void optimal(int refString[], int pageFrames, int size)
 {
     /**Initialization to to first set each individual memory frame
@@ -89,16 +95,14 @@ void optimal(int refString[], int pageFrames, int size)
                 break;
             }
         }
-
         // If found or empty
-        if (found){
+        if(found){
             found = 0;
         }
         // We replace the optimal index
         else{
             flag = 1;
             pageFaults++;
-
             for (int l = 0; l < pageFrames; l++){
                 // Find future page number
                 for (int k = i; k < size; k++){
@@ -131,7 +135,6 @@ void optimal(int refString[], int pageFrames, int size)
             memFrames[bestCase] = refString_num;
             bestCase = 0;
         }
-
         // If page fault exist, we print it
         if (flag){
             printf("\nStep %d:  ", pageFaults);
@@ -144,7 +147,12 @@ void optimal(int refString[], int pageFrames, int size)
     printf("\nThere are %d page faults in this page replacement process.", pageFaults);
 }
 
-// Least recently used (LRU)
+/**
+ * @brief Least Recently Used(LRU) algorithm
+ * @param refString User input for the page replacement
+ * @param pageFrames Number of available pages in the memory
+ * @param size Size of the reference string
+ */
 void lru(int refString[], int pageFrames, int size)
 {
     int memFrames[pageFrames];
@@ -155,84 +163,63 @@ void lru(int refString[], int pageFrames, int size)
     int flag = 0;
     int pageFaults = 0;
 
-    // Always initialize value of memory frame to be -1 as initial value
-    for (int i = 0; i < pageFrames; i++)
-    {
+    /**Initialization to to first set each individual memory frame
+     * to a initial value of -1. */
+    for (int i = 0; i < pageFrames; i++){
         memFrames[i] = -1;
         counter[i] = pageFrames_val;
         pageFrames_val -= 1;
     }
-
-    for (int i = 0; i < size; i++)
-    {
-
+    for (int i = 0; i < size; i++){
         // Increment to find out the least recently used
-        for (int i = 0; i < pageFrames; i++)
-        {
+        for (int i = 0; i < pageFrames; i++){
             counter[i]++;
         }
-
         int refString_num = refString[i];
-
-        if (valcheck > pageFrames - 1)
-        {
+        if (valcheck > pageFrames - 1){
             valcheck = 0;
         }
-
         // if the reference string value is in any of the frames, we set flag = 1
-        for (int y = 0; y < pageFrames; y++)
-        {
-            if (memFrames[y] == refString_num)
-            {
+        for (int y = 0; y < pageFrames; y++){
+            if (memFrames[y] == refString_num){
                 flag = 1;
             }
         }
 
-        if (flag)
-        {
+        if (flag){
             flag = 0;
-
-            for (int y = 0; y < pageFrames; y++)
-            {
-                if (memFrames[y] == refString_num)
-                {
+            for (int y = 0; y < pageFrames; y++){
+                if (memFrames[y] == refString_num){
                     counter[y] = 0;
                 }
             }
         }
-        else
-        {
+        else{
             pageFaults++;
-
             // Checks for most occurence in the array
             int h = 0, hIndex = 0;
-            for (int i = 0; i < pageFrames; i++)
-            {
-                if (counter[i] > h)
-                {
+            for (int i = 0; i < pageFrames; i++){
+                if (counter[i] > h){
                     h = counter[i];
                     hIndex = i;
                 }
             }
-
             // We will replace the least recently used page number with the highst occurrence in memory frame
             memFrames[hIndex] = refString_num;
             counter[hIndex] = 0;
 
             // If page fault exist, we print it
-
             printf("\nStep %d:  ", pageFaults);
-            for (int j = 0; j < pageFrames; j++)
-            {
+            for (int j = 0; j < pageFrames; j++){
                 printf("%d ", memFrames[j]);
             }
         }
-
         valcheck++;
     }
 
     printf("\nThere are %d page faults in this page replacement process.", pageFaults);
 }
+
 // MAIN
 int main(void)
 {
@@ -269,19 +256,19 @@ int main(void)
         printf("%d ", refString[i]);
     }
 
-    // Run algorithm based on user choice
-    if (algoChoice == 1)
+    switch (algoChoice)
     {
+    case 1:
         fifo(refString, pageFrames, size);
-    }
-    else if (algoChoice == 2)
-    {
+        break;
+    case 2:
         optimal(refString, pageFrames, size);
-    }
-    else
-    {
+        break;
+    case 3:
         lru(refString, pageFrames, size);
-    }
-
+        break;
+    default:
+        printf("No algo was selected\nExiting...");
+        break;
     return 0;
 }
