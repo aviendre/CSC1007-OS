@@ -55,17 +55,17 @@ static int __init csc1007_init(void){
         printk(KERN_ALERT "CSC1007OS failed to register a major number\n");
         return majorNumber;
     }
-    printk(KERN_INFO "CSC1007OS:registered with major number %d\n",majorNumber);
+    printk(KERN_INFO "CSC1007OS: Registered with major number %d\n",majorNumber);
 
     //Register the device class
     csc1007Class = class_create(THIS_MODULE, CLASS_NAME);
     //Error-checking for the initialization of device class
     if(IS_ERR(csc1007Class)){
         unregister_chrdev(majorNumber,DEVICE_NAME);
-        printk(KERN_ALERT "Failed to register device class\n");
+        printk(KERN_ALERT "Failed to register Device class\n");
         return PTR_ERR(csc1007Class);
     }
-    printk(KERN_INFO "CSC1007OS: device class registered\n");
+    printk(KERN_INFO "CSC1007OS: Device class registered\n");
 
     //Register the device driver
     csc1007Device = device_create(csc1007Class, NULL, MKDEV(majorNumber,0), NULL, DEVICE_NAME);
@@ -73,10 +73,10 @@ static int __init csc1007_init(void){
     if(IS_ERR(csc1007Device)){
         class_destroy(csc1007Class);
         unregister_chrdev(majorNumber,DEVICE_NAME);
-        printk(KERN_ALERT "Failed to create the device\n");
+        printk(KERN_ALERT "Failed to create the Device\n");
         return PTR_ERR(csc1007Device);
     }
-    printk(KERN_INFO "CSC1007OS:device class created\n");
+    printk(KERN_INFO "CSC1007OS: Device class created\n");
 
     mutex_init(&csc1007_mutex);
     return 0;
@@ -92,7 +92,7 @@ static void __exit csc1007_exit(void){
     class_unregister(csc1007Class);
     class_destroy(csc1007Class);
     unregister_chrdev(majorNumber, DEVICE_NAME);
-    printk(KERN_INFO "CSC1007OS:Closing kernel\n");
+    printk(KERN_INFO "CSC1007OS: Closing kernel\n");
 }
 
 /**
@@ -103,11 +103,11 @@ static void __exit csc1007_exit(void){
  */
 static int dev_open(struct inode *inodep, struct file *filep){
     if(!mutex_trylock(&csc1007_mutex)){
-        printk(KERN_ALERT "CSC1007OS:Device is in use\n");
+        printk(KERN_ALERT "CSC1007OS: Device is in use\n");
         return -EBUSY;
     }
     numberOpens++;
-    printk(KERN_INFO "CSC1007OS:Device has been opened %d times\n",numberOpens);
+    printk(KERN_INFO "CSC1007OS: Device has been opened %d times\n",numberOpens);
     return 0;
 }
 
@@ -125,10 +125,10 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 
     //if no error, device has been read succesfully by user
     if(errorCount == 0){
-        printk(KERN_INFO "CSC1007OS:Device has been read by %d times\n",size_of_message);
+        printk(KERN_INFO "CSC1007OS: Device has written %d characters to user\n",size_of_message);
         return (size_of_message = 0);    //clear the position to the start and return 0
     } else {
-        printk(KERN_INFO "CSC1007OS:Failed to send %d characters to the user\n",size_of_message);
+        printk(KERN_INFO "CSC1007OS: Failed to send %d characters to the user\n",size_of_message);
         return -EFAULT;     //return a bad address message
     }
 }
@@ -142,9 +142,9 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
  * @param offset Any offset if required
  */
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
-    sprintf(message, "%s(%zu letters)",buffer, len);
+    sprintf(message, "%s(%zu characters)",buffer, len);
     size_of_message = strlen(message);
-    printk(KERN_INFO "CSC1007OS:Device has been written by %d times\n",len);
+    printk(KERN_INFO "CSC1007OS: Device has read %d characters sent by user\n",len);
     return len;
 }
 
@@ -156,7 +156,7 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
  */
 static int dev_release(struct inode *inodep, struct file *filep){
     mutex_unlock(&csc1007_mutex);
-    printk(KERN_INFO "CSC1007OS:Device has been closed\n");
+    printk(KERN_INFO "CSC1007OS: Device has been closed\n");
     return 0;
 }
 

@@ -1,62 +1,51 @@
-/*
-A simple C application program named chardevclient.c, to access the 
-“character device” via the new read-only device driver, chardev.c in the kernel. 
-*/
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
-
-#define MAX_SIZE 100
-
-int main() {
-    int fd, c, rtn;    
-    //defined device name: CSC1007OS
-    fd = open("/dev/CSC1007OS", O_RDWR);  // open the CSC1007OS driver 
-    if (fd == -1)   // if fail to open the driver (the drive is not in kernel)
-    {
-        perror("open /dev/CSC1007OS");
-        exit(EXIT_FAILURE);
-    }    
-    char str[MAX_SIZE];
-    //Get user input to write
-    printf("Writing to /dev/CSC1007OS: \n");
-    fgets(str, sizeof str, stdin);
-      bool x = true;
-      while (x){          
-        if(str[0] == '\n'){ //check if input empty where user only enter the "Enter" key
-            if(rtn = read(fd, &str, 1)>0){
-                printf("Reading from /dev/CSC1007OS: \n");
-            } 
-            if (rtn == -1)  // fail to ready info
-            {
-                perror("reading /dev/CSC1007OS");
-            } 
-            x= false; // end of user input, stop the loop
-        }
-        else{
-            // call write
-            rtn = write(fd, &str, strlen(str));
-            if (rtn == -1) // fail to write info
-            {
-                perror("writing /dev/CSC1007OS");
-            }else{ //successful write
-                //The user space application will print out the received sentences/messages plus the length of the characters on the screen.
-                printf("%s (%d characters)\n",str,rtn); 
-                // Get for more user input to write
-                printf("Writing to /dev/CSC1007OS: \n");
-                fgets(str, sizeof str, stdin);
-            }
-        }
+#include<stdio.h>
+#include<stdlib.h>
+#include<errno.h>
+#include<fcntl.h>
+#include<string.h>
+#include<unistd.h>
+#include<stdbool.h>
+ 
+#define BUFFER_LENGTH 256               ///< The buffer length (crude but fine)
+static char receive[BUFFER_LENGTH];     ///< The receive buffer from the LKM
+ 
+int main(){
+   int ret, fd;
+   char stringToSend[BUFFER_LENGTH], contProgramme;
+   printf("Starting Device...\n");
+   fd = open("/dev/CSC1007OS", O_RDWR);             // Open the device with read/write access
+   if (fd < 0){
+      perror("Failed to open the Device.");
+      return errno;
+   }
+   
+   while (1){
+      printf("Write a message to send to the kernel module:\n");
+      scanf("%[^\n]%*c", stringToSend);                // Read in a string (with spaces)
+      printf("\nWriting message to the Device \"%s\"...\n", stringToSend);
+      ret = write(fd, stringToSend, strlen(stringToSend)); // Send the string to the LKM
+      if (ret < 0){
+         perror("Failed to write the message to the Device.");
+         return errno;
       }
-      // call release?? idk how REMEBER to ASK THEM.
-      //rtn = release("/dev/CSC1007OS" ,O_RDWR);
-      printf("\n Program have ended.\n");// print the program ended and exit
-    exit(EXIT_SUCCESS);
-    //dmesg use to check driver output
+   
+      printf("Press ENTER to read back from the Device\n");
+      getchar();
+   
+      printf("Reading from the Device...\n");
+      ret = read(fd, receive, BUFFER_LENGTH);        // Read the response from the LKM
+      if (ret < 0){
+         perror("Failed to read the message from the Device.");
+         return errno;
+      }
+      printf("The received message is: \"%s\"\n\n", receive);
+      printf("Would you like to write another message?[Y/N]:");
+      contProgramme = getchar();
+      if (contProgramme == 'N' || contProgramme == 'n'){
+         break;
+      }
+      getchar();
+   }
+   printf("Closing Device...\n");
+   return 0;
 }
