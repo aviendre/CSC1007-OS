@@ -125,7 +125,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 
     //if no error, device has been read succesfully by user
     if(errorCount == 0){
-        printk(KERN_INFO "CSC1007OS: Device has written %d characters to user\n",size_of_message);
+        printk(KERN_INFO "CSC1007OS: Device has read %d characters to user\n",size_of_message);
         return (size_of_message = 0);    //clear the position to the start and return 0
     } else {
         printk(KERN_INFO "CSC1007OS: Failed to send %d characters to the user\n",size_of_message);
@@ -144,7 +144,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
     sprintf(message, "%s(%zu characters)",buffer, len);
     size_of_message = strlen(message);
-    printk(KERN_INFO "CSC1007OS: Device has read %d characters sent by user\n",len);
+    printk(KERN_INFO "CSC1007OS: Device has written %d characters sent by user\n",len);
     return len;
 }
 
